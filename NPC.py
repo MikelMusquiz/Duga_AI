@@ -229,7 +229,8 @@ class Npc:
                         " - my position", self.map_pos
                     )
 
-                self.print_messages()
+                #printself.print_messages()
+            #print(self.map_pos)
 
         if self.is_alive() and not SETTINGS.player_states['dead']:
             self.render()

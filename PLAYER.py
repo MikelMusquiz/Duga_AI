@@ -79,7 +79,7 @@ class Player:
             self.health = SETTINGS.player_health
             
         key = pygame.key.get_pressed()
-
+        
         #Movement controls (WASD)
         if not SETTINGS.player_states['dead']:
             #Inventory open
@@ -259,13 +259,14 @@ class Player:
             
     def move(self, pos):
 
+        #print(SETTINGS.player_states)
         if SETTINGS.cfps > 5:
             if pos[0] != 0:
                 self.update(pos[0], 0)
             if pos[1] != 0:
                 self.update(0, pos[1])
 
-    def update(self, x, y):        
+    def update(self, x, y):  
         self.real_x += x * SETTINGS.dt
         self.real_y += y * SETTINGS.dt
         self.rect.x = self.real_x

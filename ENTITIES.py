@@ -960,7 +960,7 @@ def spawn_npcs():
             random.seed(seed)
             seed += 0.001
             stats = copy.deepcopy(random.choice([x for x in SETTINGS.npc_types if x['name'] != 'random']))
-            print(stats['name'])
+            #print(stats['name'])
         else: 
             stats = copy.deepcopy([x for x in SETTINGS.npc_types if x['id'] == npc[2]][0])
             
