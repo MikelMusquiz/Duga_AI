@@ -455,7 +455,9 @@ def update_data(data,maxData):
                 closest_npcs[1] = npc
             else:
                 closest_npcs[2] = npc
+    print(closest_npcs[0].name)
     if maxData > 0 and SETTINGS.current_gun != None:
+
         data.append({
                 'pl_speed': SETTINGS.player_speed,
                 'pl_pos': SETTINGS.player_map_pos,
@@ -469,14 +471,18 @@ def update_data(data,maxData):
                 'npc1_ID': closest_npcs[0].ID,
                 'npc1_name': closest_npcs[0].name,
                 'npc1_mind': closest_npcs[0].mind,
+                'npc1_state': closest_npcs[0].state,
                 'npc1_dist': closest_npcs[0].dist_from_player,
+                'npc1_seen': closest_npcs[0].last_seen_player_position,
                 'npc2_ID': closest_npcs[1].ID,
                 'npc2_name': closest_npcs[1].name,
                 'npc2_mind': closest_npcs[1].mind,
+                'npc2_state': closest_npcs[1].state,
                 'npc2_dist': closest_npcs[1].dist_from_player,
                 'npc3_ID': closest_npcs[2].ID,
                 'npc3_name': closest_npcs[2].name,
                 'npc3_mind': closest_npcs[2].mind,
+                'npc3_state': closest_npcs[2].state,
                 'npc3_dist': closest_npcs[2].dist_from_player
                 })
     if maxData == 0:
