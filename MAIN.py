@@ -8,6 +8,7 @@ import pickle
 import logging
 import sys
 import json
+import copy
 #-- Engine imports--
 import SETTINGS
 import PLAYER
@@ -356,7 +357,7 @@ def draw_game_visual():
                                  (i.rect[0] / 4, i.rect[1] / 4, i.rect[2] / 4, i.rect[3] / 4))
 
 
-def update_game_state():
+def update_game_state(data):
     if SETTINGS.npc_list:
         for npc in SETTINGS.npc_list:
             if not npc.dead:
@@ -376,6 +377,8 @@ def update_game_state():
             gameLoad.load_new_level()
         
         elif (SETTINGS.current_level == len(SETTINGS.levels_list)-1 or SETTINGS.player_states['dead']) and gameLoad.timer < 4 and not SETTINGS.player_states['fade']:
+            with open('data.txt', 'w') as outfile:
+                json.dump(data, outfile)
             if not SETTINGS.player_states['dead'] and SETTINGS.current_level == len(SETTINGS.levels_list)-1 and text.string != 'YOU  WON':
                 text.update_string('YOU  WON')
             elif SETTINGS.player_states['dead'] and text.string != 'GAME  OVER':
@@ -440,58 +443,61 @@ def player_moved():
     ]
     # SETTINGS.all_solid_tiles = sorted(SETTINGS.all_solid_tiles, key=lambda x: (x.type, x.atan, x.distance))
 
-def update_data(data,maxData):
-    # Get the three closest NPCs sorted by distance
-    closest_npcs = [SETTINGS.npc_list[0], SETTINGS.npc_list[0], SETTINGS.npc_list[0]]
-    for npc in SETTINGS.npc_list:
-        dist = npc.dist_from_player
-        if closest_npcs[2].dist_from_player > dist and not npc.dead:
-            if closest_npcs[0].dist_from_player > dist and not npc.dead:
-                closest_npcs[2] = closest_npcs[1]
-                closest_npcs[1] = closest_npcs[0]
-                closest_npcs[0] = npc
-            elif closest_npcs[1].dist_from_player > dist and not npc.dead:
-                closest_npcs[2] = closest_npcs[1]
-                closest_npcs[1] = npc
-            else:
-                closest_npcs[2] = npc
-    print(maxData)
-    print('1: '+ closest_npcs[0].name + ', ' + str(closest_npcs[0].dist_from_player))
-    print('2: '+ closest_npcs[1].name + ', ' + str(closest_npcs[1].dist_from_player))
-    print('3: '+ closest_npcs[2].name + ', ' + str(closest_npcs[2].dist_from_player))
-    if maxData > 0 and SETTINGS.current_gun != None:
-
-        data.append({
-                'pl_speed': SETTINGS.player_speed,
-                'pl_pos_x': SETTINGS.player_map_pos[0],
-                'pl_pos_y': SETTINGS.player_map_pos[1],
-                'pl_angle': SETTINGS.player_angle,
-                'pl_armor': SETTINGS.player_armor,
-                'pl_health': SETTINGS.player_health,
-                'gun_name': SETTINGS.current_gun.name,
-                'gun_reload': int(SETTINGS.current_gun.reload_busy),
-                'gun_mag': SETTINGS.current_gun.current_mag,
-                'gun_bullets': SETTINGS.held_ammo['bullet'],
-                'npc1_ID': closest_npcs[0].ID,
-                'npc1_name': closest_npcs[0].name,
-                'npc1_mind': closest_npcs[0].mind,
-                'npc1_state': closest_npcs[0].state,
-                'npc1_dist': closest_npcs[0].dist_from_player,
-                #'npc1_seen': closest_npcs[0].last_seen_player_position,
-                'npc2_ID': closest_npcs[1].ID,
-                'npc2_name': closest_npcs[1].name,
-                'npc2_mind': closest_npcs[1].mind,
-                'npc2_state': closest_npcs[1].state,
-                'npc2_dist': closest_npcs[1].dist_from_player,
-                'npc3_ID': closest_npcs[2].ID,
-                'npc3_name': closest_npcs[2].name,
-                'npc3_mind': closest_npcs[2].mind,
-                'npc3_state': closest_npcs[2].state,
-                'npc3_dist': closest_npcs[2].dist_from_player
-                })
-    if maxData == 0:
-        with open('data.txt', 'w') as outfile:
-            json.dump(data, outfile)
+def update_data(data):
+    
+    if SETTINGS.npc_list[0].dist_from_player != None:
+        # Initialize the closest_npcs with fake npcs with infinite distance from the player
+        npc_copy = copy.copy(SETTINGS.npc_list[0])
+        npc_copy.dist_from_player = float('inf')
+        closest_npcs = [npc_copy, npc_copy, npc_copy]
+        
+        # Get the three closest NPCs sorted by distance
+        for npc in SETTINGS.npc_list:
+            dist = npc.dist_from_player
+            if closest_npcs[2].dist_from_player > dist and not npc.dead:
+                if closest_npcs[0].dist_from_player > dist and not npc.dead:
+                    closest_npcs[2] = closest_npcs[1]
+                    closest_npcs[1] = closest_npcs[0]
+                    closest_npcs[0] = npc
+                elif closest_npcs[1].dist_from_player > dist and not npc.dead:
+                    closest_npcs[2] = closest_npcs[1]
+                    closest_npcs[1] = npc
+                else:
+                    closest_npcs[2] = npc
+        print(SETTINGS.player_states["cspeed"])
+        print('1: '+ closest_npcs[0].name + ', ' + str(closest_npcs[0].dist_from_player) + ', '+str(closest_npcs[0].dead))
+        print('2: '+ closest_npcs[1].name + ', ' + str(closest_npcs[1].dist_from_player) + ', '+str(closest_npcs[1].dead))
+        print('3: '+ closest_npcs[2].name + ', ' + str(closest_npcs[2].dist_from_player) + ', '+str(closest_npcs[2].dead))
+        if SETTINGS.current_gun != None:
+            
+            data.append({
+                    'pl_speed': SETTINGS.player_states["cspeed"],
+                    'pl_pos_x': SETTINGS.player_map_pos[0],
+                    'pl_pos_y': SETTINGS.player_map_pos[1],
+                    'pl_angle': SETTINGS.player_angle,
+                    'pl_armor': SETTINGS.player_armor,
+                    'pl_health': SETTINGS.player_health,
+                    'gun_name': SETTINGS.current_gun.name,
+                    'gun_reload': int(SETTINGS.current_gun.reload_busy),
+                    'gun_mag': SETTINGS.current_gun.current_mag,
+                    'gun_bullets': SETTINGS.held_ammo['bullet'],
+                    'npc1_ID': closest_npcs[0].ID,
+                    'npc1_name': closest_npcs[0].name,
+                    'npc1_mind': closest_npcs[0].mind,
+                    'npc1_state': closest_npcs[0].state,
+                    'npc1_dist': closest_npcs[0].dist_from_player,
+                    #'npc1_seen': closest_npcs[0].last_seen_player_position,
+                    'npc2_ID': closest_npcs[1].ID,
+                    'npc2_name': closest_npcs[1].name,
+                    'npc2_mind': closest_npcs[1].mind,
+                    'npc2_state': closest_npcs[1].state,
+                    'npc2_dist': closest_npcs[1].dist_from_player,
+                    'npc3_ID': closest_npcs[2].ID,
+                    'npc3_name': closest_npcs[2].name,
+                    'npc3_mind': closest_npcs[2].mind,
+                    'npc3_state': closest_npcs[2].state,
+                    'npc3_dist': closest_npcs[2].dist_from_player
+                    })        
 
 
 #Main loop
@@ -504,7 +510,6 @@ def main_loop():
     
     #Dictionary to log player state
     data = []
-    maxData = 1000
     
     while not game_exit:
         try:
@@ -520,11 +525,9 @@ def main_loop():
                         # todo figure how much work to do based on the event.value
                         rotate_screen()
                         player_moved()
-                        update_data(data,maxData)
-                        maxData -= 1
+                        update_data(data)
                 elif event.type == EVENT_PLAYER_LOCATION_CHANGED:
-                    update_data(data,maxData)
-                    maxData -= 1
+                    update_data(data)
                     player_moved()
                 elif event.type == TIMER_PLAYTIME:
                     if SETTINGS.play_seconds >= SECONDS_IN_MINUTE:
@@ -569,14 +572,17 @@ def main_loop():
                 menuController.control()
 
             else:
-                update_game_state()
+                update_game_state(data)
                 update_game_visual()
 
         except Exception as e:
+            print(e)
             menuController.save_settings()
             calculate_statistics()
             logging.warning("DUGA has crashed. Please send this report to MaxwellSalmon, so he can fix it.")
             logging.exception("Error message: ")
+            with open('data.txt', 'w') as outfile:
+                json.dump(data, outfile)
             pygame.quit()
             sys.exit(0)
 

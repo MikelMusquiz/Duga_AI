@@ -63,8 +63,5 @@ for i in range(ndata):
     aux = np.array(list(data[i].items()))[:,1][numerical_ind]
 
     data_np[i,np.logical_not(categ_ind)] = aux
-    
-print(data_np)
-print(data)
-        
+
 
