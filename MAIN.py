@@ -455,17 +455,21 @@ def update_data(data,maxData):
                 closest_npcs[1] = npc
             else:
                 closest_npcs[2] = npc
-    print(closest_npcs[0].name)
+    print(maxData)
+    print('1: '+ closest_npcs[0].name + ', ' + str(closest_npcs[0].dist_from_player))
+    print('2: '+ closest_npcs[1].name + ', ' + str(closest_npcs[1].dist_from_player))
+    print('3: '+ closest_npcs[2].name + ', ' + str(closest_npcs[2].dist_from_player))
     if maxData > 0 and SETTINGS.current_gun != None:
 
         data.append({
                 'pl_speed': SETTINGS.player_speed,
-                'pl_pos': SETTINGS.player_map_pos,
+                'pl_pos_x': SETTINGS.player_map_pos[0],
+                'pl_pos_y': SETTINGS.player_map_pos[1],
                 'pl_angle': SETTINGS.player_angle,
                 'pl_armor': SETTINGS.player_armor,
                 'pl_health': SETTINGS.player_health,
                 'gun_name': SETTINGS.current_gun.name,
-                'gun_reload': SETTINGS.current_gun.reload_busy,
+                'gun_reload': int(SETTINGS.current_gun.reload_busy),
                 'gun_mag': SETTINGS.current_gun.current_mag,
                 'gun_bullets': SETTINGS.held_ammo['bullet'],
                 'npc1_ID': closest_npcs[0].ID,
@@ -473,7 +477,7 @@ def update_data(data,maxData):
                 'npc1_mind': closest_npcs[0].mind,
                 'npc1_state': closest_npcs[0].state,
                 'npc1_dist': closest_npcs[0].dist_from_player,
-                'npc1_seen': closest_npcs[0].last_seen_player_position,
+                #'npc1_seen': closest_npcs[0].last_seen_player_position,
                 'npc2_ID': closest_npcs[1].ID,
                 'npc2_name': closest_npcs[1].name,
                 'npc2_mind': closest_npcs[1].mind,
