@@ -1,4 +1,3 @@
-from tensorflow import keras
 import numpy as np
 import json
 
@@ -54,14 +53,38 @@ categ_ind[88:113] = 1
 
 print(parameters=='AK-47')
 
-for i in range(ndata):
-    #print(np.array(list(moment.items()))[:,1])
-    for j in range(nparam):            
-        if parameters[j] in list(data[i].values()):
-            data_np[i,j] =  1
+#for i in range(ndata):
+#    for j in range(nparam):            
+#        if parameters[j] in list(data[i].values()):
+#            data_np[i,j] =  1
+#
+#    aux = np.array(list(data[i].items()))[:,1][numerical_ind]
+#
+#    data_np[i,np.logical_not(categ_ind)] = aux
 
-    aux = np.array(list(data[i].items()))[:,1][numerical_ind]
+ntrain = int(ndata*0.8)
+ntest = ndata-ntrain
+x_train = data_np[:ntrain,:]
+x_test = data_np[ntrain:,:]
 
-    data_np[i,np.logical_not(categ_ind)] = aux
+
+import keras
+from keras import Sequential
+from keras.layers import Dense, Embedding, LSTM, SpatialDropout1D
+embed_dim = 32
+lstm_out = 200
+
+model = Sequential()
+model.add(Embedding(ndata, embed_dim,input_length = 114))
+model.add(SpatialDropout1D(0.4))
+model.add(LSTM(lstm_out, dropout=0.2, recurrent_dropout=0.2))
+model.add(Dense(1,activation='sigmoid'))
+model.compile(loss = 'binary_crossentropy', optimizer='adam',metrics = ['accuracy'])
+print(model.summary())
+
+batch_size = 32
+num_epochs = 3
+
+model.fit(x_train, batch_size=batch_size, epochs=num_epochs)
 
 
