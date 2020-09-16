@@ -1,10 +1,15 @@
 import numpy as np
 import json
 
-# Creates a list of strings with the names of the parameters 
-def generate_parameters_name(data,changes,tochange):
-    params = list(data[0].keys())
-    for i, change in enumerate(tochange):
+
+'''
+Input:  params: list of the original parameters, categoricals: list with the categorical 
+        parameters, changes: list of lists with the different options for each categorical
+
+Output: A list of strings with the names of the parameters 
+'''
+def generate_parameters_name(params,categoricals,changes):
+    for i, change in enumerate(categoricals):
         ind = params.index(change)
         params.remove(change)
         params[ind:ind] = changes[i]
@@ -36,9 +41,9 @@ npcs_list = ['idle soldier', 'patroul soldier', 'idle ninja', 'patroul ninja', '
 npc_minds_list = ['passive', 'hostile', 'shy']
 npc_states_list = ['attacking', 'fleeing', 'idle', 'patrouling', 'searching', 'dying']
 
-# Generate the final list of strings of all the parameters together
 changes = [guns_list, npcs_list, npc_minds_list, npc_states_list, npcs_list, npc_minds_list, npc_states_list, npcs_list, npc_minds_list, npc_states_list]
-parameters = generate_parameters_name(data,changes,categorical)
+# Generate the final list of strings of all the parameters together
+parameters = generate_parameters_name(list(data[0].keys()),categorical,changes)
 
 nparam = len(parameters)
 data_np = np.zeros([ndata,nparam])
@@ -60,29 +65,55 @@ for i in range(ndata):
     # Put the numerical values in their places
     data_np[i,np.logical_not(categ_ind)] = np.array(list(data[i].items()))[:,1][numerical_ind]
 
+# Some angle values can be negative, I get the index of those and I make them positive
+indexes = np.where(data_np[:,3]<0),3
+data_np[indexes] = 360 + data_np[indexes]
+
+# Calculate the dimensions of train and test data
 ntrain = int(ndata*0.8)
 ntest = ndata-ntrain
+
+nout = 33
+
+# Generate the train and test data
 x_train = data_np[:ntrain,:]
+y_train = x_train[1:,:nout]
+x_train = x_train[:-1,:]
 x_test = data_np[ntrain:,:]
+y_test = x_test[1:,:nout]
+x_test = x_test[:-1,:]
 
 
 import keras
 from keras import Sequential
 from keras.layers import Dense, Embedding, LSTM, SpatialDropout1D
 embed_dim = 32
-lstm_out = 200
+lstm_out = 50
 
 model = Sequential()
-model.add(Embedding(ndata, embed_dim,input_length = 114))
-model.add(SpatialDropout1D(0.4))
+model.add(Embedding(ndata, embed_dim,input_length = nparam))
 model.add(LSTM(lstm_out, dropout=0.2, recurrent_dropout=0.2))
-model.add(Dense(1,activation='sigmoid'))
+model.add(Dense(output_dim=nout,activation='sigmoid'))
 model.compile(loss = 'binary_crossentropy', optimizer='adam',metrics = ['accuracy'])
-print(model.summary())
 
-batch_size = 32
-num_epochs = 3
 
-model.fit(x_train, batch_size=batch_size, epochs=num_epochs)
+x_train = np.reshape(x_train, (x_train.shape[0], 1, x_train.shape[1]))
+x_test = np.reshape(x_test, (x_test.shape[0], 1, x_test.shape[1]))
 
+# create and fit the LSTM network
+model = Sequential()
+model.add(LSTM(lstm_out, input_shape=(1,nparam)))
+model.add(Dense(output_dim=nout))
+model.compile(loss='mean_squared_error', optimizer='adam', metrics = ['accuracy'])
+model.fit(x_train, y_train, epochs=20, batch_size=1, verbose=2)
+#
+#
+#print(model.summary())
+#
+#batch_size = 32
+#num_epochs = 3
+#
+#model.fit(x_train, y_train, batch_size=batch_size, epochs=num_epochs)
+
+y_pred = model.predict(x_train)
 
