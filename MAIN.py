@@ -7,6 +7,9 @@ import os
 import pickle
 import logging
 import sys
+#--Imports added by Mikel Musquiz--
+from os import listdir
+from os.path import isfile, join
 import json
 import copy
 #-- Engine imports--
@@ -357,7 +360,7 @@ def draw_game_visual():
                                  (i.rect[0] / 4, i.rect[1] / 4, i.rect[2] / 4, i.rect[3] / 4))
 
 
-def update_game_state(data):
+def update_game_state():
     if SETTINGS.npc_list:
         for npc in SETTINGS.npc_list:
             if not npc.dead:
@@ -369,6 +372,8 @@ def update_game_state(data):
 
     for tile in SETTINGS.all_solid_tiles:
         tile.update()
+    if menuController.current_type == 'main':
+        print("exit???")
 
     if (SETTINGS.changing_level and SETTINGS.player_states['black']) or SETTINGS.player_states['dead']:
         if SETTINGS.current_level < len(SETTINGS.levels_list)-1 and SETTINGS.changing_level:
@@ -377,8 +382,6 @@ def update_game_state(data):
             gameLoad.load_new_level()
         
         elif (SETTINGS.current_level == len(SETTINGS.levels_list)-1 or SETTINGS.player_states['dead']) and gameLoad.timer < 4 and not SETTINGS.player_states['fade']:
-            with open('data.txt', 'w') as outfile:
-                json.dump(data, outfile)
             if not SETTINGS.player_states['dead'] and SETTINGS.current_level == len(SETTINGS.levels_list)-1 and text.string != 'YOU  WON':
                 text.update_string('YOU  WON')
             elif SETTINGS.player_states['dead'] and text.string != 'GAME  OVER':
@@ -464,10 +467,10 @@ def update_data(data):
                     closest_npcs[1] = npc
                 else:
                     closest_npcs[2] = npc
-        print(SETTINGS.player_states["cspeed"])
-        print('1: '+ closest_npcs[0].name + ', ' + str(closest_npcs[0].dist_from_player) + ', '+str(closest_npcs[0].dead))
-        print('2: '+ closest_npcs[1].name + ', ' + str(closest_npcs[1].dist_from_player) + ', '+str(closest_npcs[1].dead))
-        print('3: '+ closest_npcs[2].name + ', ' + str(closest_npcs[2].dist_from_player) + ', '+str(closest_npcs[2].dead))
+#        print(SETTINGS.player_states["cspeed"])
+#        print('1: '+ closest_npcs[0].name + ', ' + str(closest_npcs[0].dist_from_player) + ', '+str(closest_npcs[0].dead))
+#        print('2: '+ closest_npcs[1].name + ', ' + str(closest_npcs[1].dist_from_player) + ', '+str(closest_npcs[1].dead))
+#        print('3: '+ closest_npcs[2].name + ', ' + str(closest_npcs[2].dist_from_player) + ', '+str(closest_npcs[2].dead))
         if SETTINGS.current_gun != None:
             
             data.append({
@@ -508,6 +511,15 @@ def main_loop():
 
     pygame.time.set_timer(TIMER_PLAYTIME, int(SECONDS_IN_MINUTE * MILLISECONDS_IN_SECOND))
     
+    mypath = "../DUGA-master"
+    files = [f for f in listdir(mypath) if isfile(join(mypath, f))]
+    for file_name in files:
+        if file_name[:8] == "data_log":
+            max_file = int(file_name[9])
+    print(max_file)
+    print('data_log_'+str(max_file+1)+'.txt')
+    print(SETTINGS.current_level)
+    
     #Dictionary to log player state
     data = []
     
@@ -515,6 +527,7 @@ def main_loop():
         try:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT or SETTINGS.quit_game:
+                    print("exit game")
                     game_exit = True
                     menuController.save_settings()
                     calculate_statistics()
@@ -572,8 +585,16 @@ def main_loop():
                 menuController.control()
 
             else:
-                update_game_state(data)
+                update_game_state()
                 update_game_visual()
+                # If there is a change of level or the game is won, write in the file
+                if data!=[] and ((SETTINGS.changing_level and SETTINGS.player_states['black']) or SETTINGS.player_states['dead'] or SETTINGS.game_won and gameLoad.timer >= 4):
+                    print('printing data in data_log_'+str(max_file+1+SETTINGS.current_level)+'.txt')
+                    with open('data_log_'+str(max_file+1+SETTINGS.current_level)+'.txt', 'w') as outfile:
+                        json.dump(data, outfile)
+                    data = []
+                    max_file = max_file + 1
+
 
         except Exception as e:
             print(e)
@@ -581,7 +602,9 @@ def main_loop():
             calculate_statistics()
             logging.warning("DUGA has crashed. Please send this report to MaxwellSalmon, so he can fix it.")
             logging.exception("Error message: ")
-            with open('data.txt', 'w') as outfile:
+            print('data_log_'+str(max_file+1)+'.txt')
+            print('printing data')
+            with open('data_log_'+str(max_file+1)+'.txt', 'w') as outfile:
                 json.dump(data, outfile)
             pygame.quit()
             sys.exit(0)

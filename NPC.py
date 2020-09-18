@@ -395,7 +395,9 @@ class Npc:
             "reseting state to ", self.OG_state,
             " and returning to ", self.OG_map_pos
         )
-
+        print(
+            "reseting state to ", self.OG_state,
+            " and returning to ", self.OG_map_pos)
         self.set_state(self.OG_state)
         self.set_path(self.OG_map_pos)
 
@@ -453,6 +455,7 @@ class Npc:
         if self.state != new_state:
             self.set_path([])
             self.add_message("changing state from", self.state, "to", new_state)
+            print(self.name," changing state from", self.state, "to", new_state)
             self.state = new_state
 
     def can_call_for_help(self):
@@ -878,6 +881,7 @@ class Npc:
             #Do only change to patrouling if it was that in the first place.
             if self.OG_state != IDLE:
                 if random.randint(0, 2) == 2:
+                    print(self.name," changing state back from", self.state, "to", self.OG_state)
                     self.state = PATROLLING
 
         # Make NPC react to gunshot if close. Or just if the player is too close.
