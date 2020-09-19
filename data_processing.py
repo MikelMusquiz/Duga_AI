@@ -6,7 +6,7 @@ Input:  params: list of the original parameters, categoricals: list with the cat
         parameters, changes: list of lists with the different options for each categorical
 
 Output: A list of strings with the names of the parameters 
-'''
+'''   
 def generate_parameters_name(params,categoricals,changes):
     for i, change in enumerate(categoricals):
         ind = params.index(change)
@@ -14,31 +14,6 @@ def generate_parameters_name(params,categoricals,changes):
         params[ind:ind] = changes[i]
     
     return params
-
-def generate_chunks(arr,chunk_len,x,y):
-    for i in range(len(arr) - chunk_len):
-        x_i = arr[i : i + chunk_len]
-        y_i = arr[chunk_len + 1,:33]
-        x.append(x_i)
-        y.append(y_i)
-    return x,y
-
-# Delete all rows in which there is no close npc
-def clean_useless_data(data,x_list,y_list):
-    chunk_len = 100
-    ndata = data.shape[0]
-    i = 0
-    while i < ndata:
-        if data[i,59] < 200:
-            first = i
-            while i < ndata and data[i,59] < 200 :
-                i = i + 1
-            if i - first >= chunk_len:
-                x_list,y_list = generate_chunks(data[first:i,:],chunk_len,x_list,y_list)
-        else:
-            i = i + 1
-    return x_list,y_list
-    
 
 def create_numpy_table(filename):
     # Read the data from the  file
@@ -79,6 +54,50 @@ def create_numpy_table(filename):
         
     return data_np
 
+
+class Normalizer():
+    
+    def __init__(self):    
+        self.max_values = []
+    
+    def fit_transform(self,data):
+        self.max_values = np.amax(data,0)
+        self.max_values[self.max_values==0] = 1
+        return data/self.max_values
+    
+    def transform(self,data):
+        return data/self.max_values
+    
+    def inverse_transform(self,data):
+        return data*self.max_values[:33]
+        
+
+def generate_chunks(arr,chunk_len,x,y):
+    for i in range(len(arr) - chunk_len):
+        x_i = arr[i : i + chunk_len]
+        y_i = arr[chunk_len + 1,:33]
+        x.append(x_i)
+        y.append(y_i)
+    return x,y
+
+# Delete all rows in which there is no close npc
+def clean_useless_data(data,x_list,y_list):
+    chunk_len = 100
+    ndata = data.shape[0]
+    i = 0
+    while i < ndata:
+        if data[i,59] < 0.33:
+            first = i
+            while i < ndata and data[i,59] < 0.33 :
+                i = i + 1
+            if i - first >= chunk_len:
+                x_list,y_list = generate_chunks(data[first:i,:],chunk_len,x_list,y_list)
+        else:
+            i = i + 1
+    return x_list,y_list
+    
+
+
 # A list of the categorical parameters
 categorical = ['gun_name','npc1_name','npc1_mind','npc1_state','npc2_name','npc2_mind','npc2_state','npc3_name','npc3_mind','npc3_state']
 
@@ -101,7 +120,10 @@ data_np = create_numpy_table('data_log_0.txt')
 
 # Some angle values can be negative, I get the index of those and I make them positive
 bad_angle_idx = np.where(data_np[:,3]<0)
-data_np[bad_angle_idx] = 360 + data_np[bad_angle_idx]
+data_np[bad_angle_idx,3] = 360 + data_np[bad_angle_idx,3]
+
+normalizer = Normalizer()
+data_np = normalizer.fit_transform(data_np)
 
 x_list = []
 y_list = []
@@ -132,7 +154,6 @@ y_test = y_data[ntrain:]
 nparam = x_train.shape[2]
 nout = y_train.shape[1]
 
-import keras
 from keras import Sequential
 from keras.layers import Dense, Embedding, LSTM, SpatialDropout1D
 embed_dim = 32
@@ -146,7 +167,8 @@ model = Sequential()
 model.add(LSTM(lstm_out, input_shape=(100,nparam)))
 model.add(Dense(output_dim=nout))
 model.compile(loss='mean_squared_error', optimizer='adam', metrics = ['accuracy'])
-#×model.fit(x_train, y_train, epochs=30, batch_size=100, verbose=2)
+model.fit(x_train, y_train, epochs=30, batch_size=100, verbose=2)
 
-y_pred = model.predict(x_train[8].reshape([1,100,114]))
+y_pred = normalizer.inverse_transform(model.predict(x_train[8].reshape([1,100,114])))
+y_pred_real = normalizer.inverse_transform(y_train[8])
 
