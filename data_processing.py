@@ -1,4 +1,6 @@
 import numpy as np
+from os import listdir
+from os.path import isfile, join
 import json
 
 np.random.seed(123)
@@ -82,7 +84,8 @@ def generate_chunks(arr,chunk_len,x,y):
 
 # Delete all rows in which there is no close npc and return a list of the timestamps 
 # gathered as chunks
-def clean_useless_data(data,x_list,y_list):
+def clean_useless_data(data):
+    x_list,y_list = [],[]
     chunk_len = 100
     ndata = data.shape[0]
     i = 0
@@ -95,7 +98,7 @@ def clean_useless_data(data,x_list,y_list):
                 x_list,y_list = generate_chunks(data[first:i,:],chunk_len,x_list,y_list)
         else:
             i = i + 1
-    return x_list,y_list
+    return np.array(x_list),np.array(y_list)
     
 
 example = {"pl_speed": 256, "pl_pos_x": 5, "pl_pos_y": 5, "pl_angle": 56.75, "pl_armor": 5, "pl_health": 35, "gun_name": "Brass Knuckles", "gun_reload": 0, "gun_mag": 0, "gun_bullets": 0, "npc1_ID": 17, "npc1_name": "hostile blurry", "npc1_mind": "hostile", "npc1_state": "patrouling", "npc1_dist": 504.0, "npc2_ID": 3, "npc2_name": "patroul ninja", "npc2_mind": "hostile", "npc2_state": "patrouling", "npc2_dist": 559.3612428475896, "npc3_ID": 2, "npc3_name": "idle ninja", "npc3_mind": "hostile", "npc3_state": "idle", "npc3_dist": 578.0181658045013}
@@ -114,21 +117,40 @@ changes = [guns_list, npcs_list, npc_minds_list, npc_states_list, npcs_list, npc
 
 # Generate the final list of strings of all the parameters together
 parameters = generate_parameters_name(list(example.keys()),categorical,changes)
-print(list(example.keys()))
-# Create a numpy table with all the data
-data_np = create_numpy_table('data_log_0.txt',parameters)
-
-# Some angle values can be negative, I get the index of those and I make them positive
-bad_angle_idx = np.where(data_np[:,3]<0)
-data_np[bad_angle_idx,3] = 360 + data_np[bad_angle_idx,3]
-
-normalizer = Normalizer()
-data_norm = normalizer.fit_transform(data_np)
 
 
-x_list,y_list= clean_useless_data(data_norm,[],[])
-x_data = np.array(x_list)
-y_data = np.array(y_list)
+
+# Getting the number of data files
+mypath = "../DUGA-master"
+files = [f for f in listdir(mypath) if isfile(join(mypath, f))]
+for file_name in files:
+    if file_name[:8] == "data_log":
+        max_file = int(file_name[9])
+
+# Create a list with numpy tables, each one for a data file
+list_raw = []
+for i in range(max_file+1):
+    data_np = create_numpy_table('data_log_'+str(i)+'.txt',parameters)
+    
+    # Some angle values can be negative, I get the index of those and I make them positive
+    bad_angle_idx = np.where(data_np[:,3]<0)
+    data_np[bad_angle_idx,3] = 360 + data_np[bad_angle_idx,3]
+    
+    # Normalize if necessary
+    normalizer = Normalizer()
+    data_norm = normalizer.fit_transform(data_np)
+    booleano = np.isnan(data_np)
+    if(sum(sum(booleano))) > 0:
+        print('SOCORROOOOOOOOO!!!!!')
+    
+    list_raw.append(data_np)
+
+x_data,y_data = clean_useless_data(list_raw[2])
+for table in list_raw[2:]:
+    x_list,y_list= clean_useless_data(table)
+    x_data = np.append(x_data,x_list,0)
+    y_data = np.append(y_data,y_list,0)
+
 print("x_data shape:")
 print(x_data.shape)
 print("y_data shape:")
@@ -144,7 +166,7 @@ shuf_idx = np.random.permutation(range(ndata))
 x_data = x_data[shuf_idx]
 y_data = y_data[shuf_idx]
 
-# Dived the data in train and test
+# Divide the data in train and test
 x_train = x_data[:ntrain]
 y_train = y_data[:ntrain]
 x_test = x_data[ntrain:]
@@ -156,15 +178,14 @@ nout = y_train.shape[1]
 from keras import Sequential
 from keras.layers import Dense, Embedding, LSTM, SpatialDropout1D
 
-embed_dim = 32
 lstm_out = 50
 
 # create and fit the LSTM network
 model = Sequential()
 model.add(LSTM(lstm_out, input_shape=(100,nparam)))
 model.add(Dense(output_dim=nout))
-model.compile(loss='mean_squared_error', optimizer='adam', metrics = ['accuracy'])
-model.fit(x_train, y_train, epochs=45, batch_size=100, verbose=2)
+model.compile(loss='mean_squared_error', optimizer='sgd', metrics = ['accuracy'])
+model.fit(x_train, y_train, epochs=10, batch_size=100, verbose=2)
 
 
 pred_train = normalizer.inverse_transform(model.predict(x_train))
