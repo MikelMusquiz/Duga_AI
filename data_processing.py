@@ -1,6 +1,8 @@
 import numpy as np
 import json
 
+np.random.seed(123)
+
 '''
 Input:  params: list of the original parameters, categoricals: list with the categorical 
         parameters, changes: list of lists with the different options for each categorical
@@ -15,7 +17,7 @@ def generate_parameters_name(params,categoricals,changes):
     
     return params
 
-def create_numpy_table(filename):
+def create_numpy_table(filename,parameters):
     # Read the data from the  file
     with open(filename) as json_file:
         data = json.load(json_file)
@@ -29,7 +31,6 @@ def create_numpy_table(filename):
     numerical_ind = np.zeros([nparam_initial],'bool')
     for i,param in enumerate(data[0]):
         if type(data[0][param]).__name__ !='str':
-            #numerical.append(param)
             numerical_ind[i] = True
     
     nparam = len(parameters)
@@ -42,7 +43,6 @@ def create_numpy_table(filename):
     categ_ind[34:59] = 1
     categ_ind[61:86] = 1
     categ_ind[88:113] = 1
-    
     # Create the numpy table that contains all the data represented as numbers
     for i in range(ndata):
         for j in range(nparam):
@@ -54,22 +54,22 @@ def create_numpy_table(filename):
         
     return data_np
 
-
+# Class with functions to normalize and inverse
 class Normalizer():
     
     def __init__(self):    
-        self.max_values = []
+        self.max_values = None
     
     def fit_transform(self,data):
         self.max_values = np.amax(data,0)
         self.max_values[self.max_values==0] = 1
-        return data/self.max_values
+        return data
     
     def transform(self,data):
-        return data/self.max_values
+        return data
     
     def inverse_transform(self,data):
-        return data*self.max_values[:33]
+        return data
         
 
 def generate_chunks(arr,chunk_len,x,y):
@@ -80,15 +80,16 @@ def generate_chunks(arr,chunk_len,x,y):
         y.append(y_i)
     return x,y
 
-# Delete all rows in which there is no close npc
+# Delete all rows in which there is no close npc and return a list of the timestamps 
+# gathered as chunks
 def clean_useless_data(data,x_list,y_list):
     chunk_len = 100
     ndata = data.shape[0]
     i = 0
     while i < ndata:
-        if data[i,59] < 0.33:
+        if data[i,59] < 200:
             first = i
-            while i < ndata and data[i,59] < 0.33 :
+            while i < ndata and data[i,59] < 200:
                 i = i + 1
             if i - first >= chunk_len:
                 x_list,y_list = generate_chunks(data[first:i,:],chunk_len,x_list,y_list)
@@ -97,6 +98,7 @@ def clean_useless_data(data,x_list,y_list):
     return x_list,y_list
     
 
+example = {"pl_speed": 256, "pl_pos_x": 5, "pl_pos_y": 5, "pl_angle": 56.75, "pl_armor": 5, "pl_health": 35, "gun_name": "Brass Knuckles", "gun_reload": 0, "gun_mag": 0, "gun_bullets": 0, "npc1_ID": 17, "npc1_name": "hostile blurry", "npc1_mind": "hostile", "npc1_state": "patrouling", "npc1_dist": 504.0, "npc2_ID": 3, "npc2_name": "patroul ninja", "npc2_mind": "hostile", "npc2_state": "patrouling", "npc2_dist": 559.3612428475896, "npc3_ID": 2, "npc3_name": "idle ninja", "npc3_mind": "hostile", "npc3_state": "idle", "npc3_dist": 578.0181658045013}
 
 # A list of the categorical parameters
 categorical = ['gun_name','npc1_name','npc1_mind','npc1_state','npc2_name','npc2_mind','npc2_state','npc3_name','npc3_mind','npc3_state']
@@ -110,24 +112,21 @@ npc_states_list = ['attacking', 'fleeing', 'idle', 'patrouling', 'searching', 'd
 # List of the lists of changes
 changes = [guns_list, npcs_list, npc_minds_list, npc_states_list, npcs_list, npc_minds_list, npc_states_list, npcs_list, npc_minds_list, npc_states_list]
 
-example = {"pl_speed": 256, "pl_pos_x": 5, "pl_pos_y": 5, "pl_angle": 56.75, "pl_armor": 5, "pl_health": 35, "gun_name": "Brass Knuckles", "gun_reload": 0, "gun_mag": 0, "gun_bullets": 0, "npc1_ID": 17, "npc1_name": "hostile blurry", "npc1_mind": "hostile", "npc1_state": "patrouling", "npc1_dist": 504.0, "npc2_ID": 3, "npc2_name": "patroul ninja", "npc2_mind": "hostile", "npc2_state": "patrouling", "npc2_dist": 559.3612428475896, "npc3_ID": 2, "npc3_name": "idle ninja", "npc3_mind": "hostile", "npc3_state": "idle", "npc3_dist": 578.0181658045013}
-
 # Generate the final list of strings of all the parameters together
 parameters = generate_parameters_name(list(example.keys()),categorical,changes)
-
-
-data_np = create_numpy_table('data_log_0.txt')
+print(list(example.keys()))
+# Create a numpy table with all the data
+data_np = create_numpy_table('data_log_0.txt',parameters)
 
 # Some angle values can be negative, I get the index of those and I make them positive
 bad_angle_idx = np.where(data_np[:,3]<0)
 data_np[bad_angle_idx,3] = 360 + data_np[bad_angle_idx,3]
 
 normalizer = Normalizer()
-data_np = normalizer.fit_transform(data_np)
+data_norm = normalizer.fit_transform(data_np)
 
-x_list = []
-y_list = []
-x_list,y_list= clean_useless_data(data_np,x_list,y_list)
+
+x_list,y_list= clean_useless_data(data_norm,[],[])
 x_data = np.array(x_list)
 y_data = np.array(y_list)
 print("x_data shape:")
@@ -148,7 +147,7 @@ y_data = y_data[shuf_idx]
 # Dived the data in train and test
 x_train = x_data[:ntrain]
 y_train = y_data[:ntrain]
-x_test = data_np[ntrain:]
+x_test = x_data[ntrain:]
 y_test = y_data[ntrain:]
 
 nparam = x_train.shape[2]
@@ -156,19 +155,36 @@ nout = y_train.shape[1]
 
 from keras import Sequential
 from keras.layers import Dense, Embedding, LSTM, SpatialDropout1D
+
 embed_dim = 32
 lstm_out = 50
-#
-#x_train = np.reshape(x_train, (x_train.shape[0], 1, x_train.shape[1]))
-#x_test = np.reshape(x_test, (x_test.shape[0], 1, x_test.shape[1]))
 
 # create and fit the LSTM network
 model = Sequential()
 model.add(LSTM(lstm_out, input_shape=(100,nparam)))
 model.add(Dense(output_dim=nout))
 model.compile(loss='mean_squared_error', optimizer='adam', metrics = ['accuracy'])
-model.fit(x_train, y_train, epochs=30, batch_size=100, verbose=2)
+model.fit(x_train, y_train, epochs=45, batch_size=100, verbose=2)
 
-y_pred = normalizer.inverse_transform(model.predict(x_train[8].reshape([1,100,114])))
-y_pred_real = normalizer.inverse_transform(y_train[8])
 
+pred_train = normalizer.inverse_transform(model.predict(x_train))
+pred_train = np.round(pred_train)
+y_train_real = normalizer.inverse_transform(y_train)
+acc_train = sum(sum(y_train_real==pred_train))/(ntrain*nparam)*100
+
+pred_test = normalizer.inverse_transform(model.predict(x_test))
+pred_test = np.round(pred_test)
+y_test_real = normalizer.inverse_transform(y_test)
+acc_test = sum(sum(y_test_real==pred_test))/(ntest*nparam)*100
+
+print("Train accuracy: "+str(acc_train))
+print("Test accuracy: "+str(acc_test))
+
+# serialize model to JSON
+model_json = model.to_json()
+with open("model.json", "w") as json_file:
+    json_file.write(model_json)
+# serialize weights to HDF5
+model.save_weights("model.h5")
+print("Saved model to disk")
+ 

@@ -7,11 +7,14 @@ import os
 import pickle
 import logging
 import sys
-#--Imports added by Mikel Musquiz--
+#--Imports added by Mikel Musquiz for player prediction--
 from os import listdir
 from os.path import isfile, join
 import json
 import copy
+from keras.models import model_from_json
+import numpy as np
+
 #-- Engine imports--
 import SETTINGS
 import PLAYER
@@ -446,8 +449,7 @@ def player_moved():
     ]
     # SETTINGS.all_solid_tiles = sorted(SETTINGS.all_solid_tiles, key=lambda x: (x.type, x.atan, x.distance))
 
-def update_data(data):
-    
+def get_state():
     if SETTINGS.npc_list[0].dist_from_player != None:
         # Initialize the closest_npcs with fake npcs with infinite distance from the player
         npc_copy = copy.copy(SETTINGS.npc_list[0])
@@ -467,14 +469,7 @@ def update_data(data):
                     closest_npcs[1] = npc
                 else:
                     closest_npcs[2] = npc
-#        print(SETTINGS.player_states["cspeed"])
-#        print('1: '+ closest_npcs[0].name + ', ' + str(closest_npcs[0].dist_from_player) + ', '+str(closest_npcs[0].dead))
-#        print('2: '+ closest_npcs[1].name + ', ' + str(closest_npcs[1].dist_from_player) + ', '+str(closest_npcs[1].dead))
-#        print('3: '+ closest_npcs[2].name + ', ' + str(closest_npcs[2].dist_from_player) + ', '+str(closest_npcs[2].dead))
-        if SETTINGS.current_gun != None:
-            
-            data.append({
-                    'pl_speed': SETTINGS.player_states["cspeed"],
+        state = {   'pl_speed': SETTINGS.player_states["cspeed"],
                     'pl_pos_x': SETTINGS.player_map_pos[0],
                     'pl_pos_y': SETTINGS.player_map_pos[1],
                     'pl_angle': SETTINGS.player_angle,
@@ -500,9 +495,43 @@ def update_data(data):
                     'npc3_mind': closest_npcs[2].mind,
                     'npc3_state': closest_npcs[2].state,
                     'npc3_dist': closest_npcs[2].dist_from_player
-                    })        
+                    }
+    return state
+            
+def update_data(data):
+        if SETTINGS.current_gun != None:
+            #data.append(get_state())    
+            update_last_player_states(process_state())
+            
 
+def process_state():
+    state = get_state()
+    parameters = SETTINGS.parameters
+    nparam = 114
+    state_processed = np.zeros([nparam])
+    i = 0
+    for param in parameters:
+        if type(param).__name__ !='dict':
+            state_processed[i] = state[param]
+            i = i + 1
+        else:
+            param_name = list(param.keys())[0]            
+            values = state[param_name]
+            idx = param[param_name].index(values)
+            state_processed[i+idx-1] = 1
+            i = i + len(param[param_name])
+    
+    return state_processed
+    
+def update_last_player_states(actual_state):
+    SETTINGS.last_player_states[1:] = SETTINGS.last_player_states[:-1]
+    SETTINGS.last_player_states[0] = actual_state
+        
+def predict_player_state(model):
+    SETTINGS.prediction = model.predict(SETTINGS.last_player_states)
+    print("predicted")
 
+    
 #Main loop
 def main_loop():
     game_exit = False
@@ -511,14 +540,25 @@ def main_loop():
 
     pygame.time.set_timer(TIMER_PLAYTIME, int(SECONDS_IN_MINUTE * MILLISECONDS_IN_SECOND))
     
+    # Getting the name of the newest data file to later save the new ones
     mypath = "../DUGA-master"
     files = [f for f in listdir(mypath) if isfile(join(mypath, f))]
     for file_name in files:
         if file_name[:8] == "data_log":
             max_file = int(file_name[9])
-    print(max_file)
-    print('data_log_'+str(max_file+1)+'.txt')
-    print(SETTINGS.current_level)
+            
+        
+    # loading the trained model to predict player's position
+    json_file = open('model.json', 'r')
+    loaded_model_json = json_file.read()
+    json_file.close()
+    loaded_model = model_from_json(loaded_model_json)
+    # load weights into new model
+    loaded_model.load_weights("model.h5")
+    loaded_model.compile(loss='mean_squared_error', optimizer='adam', metrics = ['accuracy'])
+    
+    SETTINGS.last_player_states = np.zeros([1,100,114])
+
     
     #Dictionary to log player state
     data = []
@@ -539,7 +579,11 @@ def main_loop():
                         rotate_screen()
                         player_moved()
                         update_data(data)
+                        if SETTINGS.last_player_states[0,0,59] < 200 and SETTINGS.last_player_states[0,0,59] > 0:
+                            predict_player_state(loaded_model)
                 elif event.type == EVENT_PLAYER_LOCATION_CHANGED:
+                    if SETTINGS.last_player_states[0,0,59] < 200 and SETTINGS.last_player_states[0,0,59] > 0:
+                        predict_player_state(loaded_model)
                     update_data(data)
                     player_moved()
                 elif event.type == TIMER_PLAYTIME:
@@ -587,13 +631,13 @@ def main_loop():
             else:
                 update_game_state()
                 update_game_visual()
-                # If there is a change of level or the game is won, write in the file
-                if data!=[] and ((SETTINGS.changing_level and SETTINGS.player_states['black']) or SETTINGS.player_states['dead'] or SETTINGS.game_won and gameLoad.timer >= 4):
-                    print('printing data in data_log_'+str(max_file+1+SETTINGS.current_level)+'.txt')
-                    with open('data_log_'+str(max_file+1+SETTINGS.current_level)+'.txt', 'w') as outfile:
-                        json.dump(data, outfile)
-                    data = []
-                    max_file = max_file + 1
+#                # If there is a change of level or the game is won, write in the file
+#                if data!=[] and ((SETTINGS.changing_level and SETTINGS.player_states['black']) or SETTINGS.player_states['dead'] or SETTINGS.game_won and gameLoad.timer >= 4):
+#                    print('printing data in data_log_'+str(max_file+1+SETTINGS.current_level)+'.txt')
+#                    with open('data_log_'+str(max_file+1+SETTINGS.current_level)+'.txt', 'w') as outfile:
+#                        json.dump(data, outfile)
+#                    data = []
+#                    max_file = max_file + 1
 
 
         except Exception as e:

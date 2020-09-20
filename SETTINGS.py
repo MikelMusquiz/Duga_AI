@@ -115,7 +115,6 @@ player_states = {
 player = None
 last_player_map_pos = None
 
-
 '''Texture settings'''
 #Wall textures and sprites go here.
 texture_darken = 100
@@ -285,3 +284,14 @@ YELLOW = (255, 255, 0)
 #Overvej at lave justerbare controls
 
 temp = []
+
+
+'''Parameters for the player position prediction'''
+predicted_player_state = None
+import pickle
+# Read the list of parameters from the file
+with open('data_params.txt', 'rb') as filehandle:
+    parameters = pickle.load(filehandle)
+model = None
+prediction = None
+last_player_states = None
