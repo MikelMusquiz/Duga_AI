@@ -100,6 +100,9 @@ class Npc:
         self.type = 'npc'
         self.last_seen_player_turn = None
         self.last_seen_player_position = None
+        
+        self.dist_from_player_pred = None
+        
         # debug maybe later messaging system?
         self.messages = []
 
@@ -234,8 +237,7 @@ class Npc:
 
         if self.is_alive() and not SETTINGS.player_states['dead']:
             self.render()
-
-            if self.dist_from_player and self.dist_from_player <= SETTINGS.render * SETTINGS.tile_size * 1.2:
+            if self.dist_from_player_pred and self.dist_from_player_pred <= SETTINGS.render * SETTINGS.tile_size * 1.2:
 
                 # PASSIVE
                 if self.mind == 'passive':
@@ -356,7 +358,7 @@ class Npc:
 
         if not self.is_ignoring_player():
             if self.detect_player():
-                if self.dist_from_player < self.perception_range:
+                if self.dist_from_player_pred < self.perception_range:
                     self.react_to_player(state_if_startled)
                 else:
                     self.react_to_player(state_if_spotted)
@@ -526,11 +528,19 @@ class Npc:
             
         xpos = SETTINGS.player_rect.centerx - self.rect.centerx
         ypos = SETTINGS.player_rect.centery - self.rect.centery
-
+        
         # TODO drop one of these
         self.dist = straight_line_distance(xpos, ypos)
         self.dist_from_player = self.dist
         
+        if SETTINGS.prediction is not None:
+            xpos_pred = SETTINGS.prediction[1]
+            ypos_pred = SETTINGS.prediction[2]
+                        # TODO drop one of these
+            self.dist_from_player_pred = straight_line_distance(xpos_pred, ypos_pred)
+        else:
+            self.dist_from_player_pred = self.dist
+
         if self.is_within_renderable_distance():
 
             theta = math.atan2(-ypos, xpos) % (2 * math.pi)
@@ -627,7 +637,7 @@ class Npc:
             self.add_message("ignoring player")
             return False
 
-        if self.dist_from_player < (SETTINGS.tile_size / 2):
+        if self.dist_from_player_pred < (SETTINGS.tile_size / 2):
             if self.side in [SIDE_BACK, SIDE_BACK_LEFT, SIDE_BACK_RIGHT]:
                 if random.choice(list(range(1, 8))) > 6:
                     self.add_message("Player is sneaking onto me, but I smelt them")
@@ -644,14 +654,14 @@ class Npc:
         has_los = PATHFINDING.has_line_of_sight(self.map_pos,SETTINGS.player_map_pos)
 
         if has_los:
-            if self.dist_from_player <= perception_distance:
+            if self.dist_from_player_pred <= perception_distance:
                 self.add_message("player in LOS within perception did I see", has_los)
                 return True
             else:
                 self.add_message("player in LOS but my eyesight let me down", self.state, self.mind, perception_distance, self.dist_from_player)
                 return False
         else:
-            if self.dist_from_player <= SETTINGS.tile_size * 2:
+            if self.dist_from_player_pred <= SETTINGS.tile_size * 2:
                 self.add_message(
                     "player is close but I don't have LOS", 
                     self.state, self.mind, perception_distance, self.dist_from_player
@@ -834,7 +844,7 @@ class Npc:
                 else:
                     self.set_path_to_player()
         elif self.state == FLEEING:
-            if self.dist_from_player <= SETTINGS.tile_size * 4:
+            if self.dist_from_player_pred <= SETTINGS.tile_size * 4:
                 flee_pos = random.choice(SETTINGS.walkable_area)
                 player_tile = [x for x in SETTINGS.walkable_area if x.map_pos == self.last_seen_player_position]
                 if player_tile:
@@ -887,11 +897,11 @@ class Npc:
         # Make NPC react to gunshot if close. Or just if the player is too close.
         # TODO move this elsewhere
         player_shot_near_conditions = [
-            self.dist_from_player <= self.get_perception_distance() * 4,
+            self.dist_from_player_pred <= self.get_perception_distance() * 4,
             SETTINGS.mouse_btn_active,
             SETTINGS.current_gun
         ]
-        if all(player_shot_near_conditions) or self.dist_from_player <= self.rect.width:
+        if all(player_shot_near_conditions) or self.dist_from_player_pred <= self.rect.width:
             self.change_facing_direction()
 
     def attack(self):
@@ -919,14 +929,14 @@ class Npc:
                             self.animate(ATTACKING)
 
                 else:
-                    if self.dist_from_player > SETTINGS.tile_size * 0.7 and not self.has_a_path():
+                    if self.dist_from_player_pred > SETTINGS.tile_size * 0.7 and not self.has_a_path():
                         self.set_path_to_player()
 
                     elif self.has_a_path():
                         try:
                             if self.path[-1].map_pos != self.last_seen_player_position:
                                 near_conditions = [
-                                    self.dist_from_player <= (SETTINGS.render / 2) * SETTINGS.tile_size,
+                                    self.dist_from_player_pred <= (SETTINGS.render / 2) * SETTINGS.tile_size,
                                     random.randint(0, 5) == 5
                                 ]
                                 if all(near_conditions):
@@ -940,8 +950,8 @@ class Npc:
                 
             elif self.atcktype == 'hitscan':
                 # Move somewhat close to player and change position after attacking
-                if self.dist_from_player <= SETTINGS.tile_size * self.range and (
-                        self.dist_from_player >= SETTINGS.tile_size * 1.5 or (
+                if self.dist_from_player_pred <= SETTINGS.tile_size * self.range and (
+                        self.dist_from_player_pred >= SETTINGS.tile_size * 1.5 or (
                         SETTINGS.current_gun and SETTINGS.current_gun.guntype == 'melee')) and not self.attack_move:
                     self.path = []
                     self.moving = False
@@ -973,7 +983,7 @@ class Npc:
                             self.animate(ATTACKING)
 
                 # Move away from player if too close
-                elif self.dist_from_player < SETTINGS.tile_size * 1.5 and self.health <= 6:
+                elif self.dist_from_player_pred < SETTINGS.tile_size * 1.5 and self.health <= 6:
                     if self.rect.centerx > SETTINGS.player_rect.centerx:
                         self.collide_update(self.speed, 0)
                         self.animate(WALKING)
@@ -989,14 +999,14 @@ class Npc:
 
                 else:
                     if not self.attack_move:
-                        if self.dist_from_player >= SETTINGS.tile_size * 2.5 and not self.has_a_path():
+                        if self.dist_from_player_pred >= SETTINGS.tile_size * 2.5 and not self.has_a_path():
                             self.set_path_to_player()
 
                         elif self.has_a_path():
                             try:
                                 if self.path[-1].map_pos != self.last_seen_player_position:
                                     near_conditions = [
-                                        self.dist_from_player <= (SETTINGS.render / 2) * SETTINGS.tile_size,
+                                        self.dist_from_player_pred <= (SETTINGS.render / 2) * SETTINGS.tile_size,
                                         random.randint(0, 5) == 5
                                     ]
                                     if all(near_conditions):

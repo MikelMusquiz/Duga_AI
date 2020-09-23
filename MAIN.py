@@ -500,7 +500,7 @@ def get_state():
             
 def update_data(data):
         if SETTINGS.current_gun != None:
-            #data.append(get_state())    
+            data.append(get_state())    
             update_last_player_states(process_state())
             
 
@@ -528,7 +528,7 @@ def update_last_player_states(actual_state):
     SETTINGS.last_player_states[0] = actual_state
         
 def predict_player_state(model):
-    SETTINGS.prediction = model.predict(SETTINGS.last_player_states)
+    SETTINGS.prediction = model.predict(SETTINGS.last_player_states)[0]
     print("predicted")
 
     
@@ -581,9 +581,14 @@ def main_loop():
                         update_data(data)
                         if SETTINGS.last_player_states[0,0,59] < 200 and SETTINGS.last_player_states[0,0,59] > 0:
                             predict_player_state(loaded_model)
+                        else:
+                            SETTINGS.prediction = None
+
                 elif event.type == EVENT_PLAYER_LOCATION_CHANGED:
                     if SETTINGS.last_player_states[0,0,59] < 200 and SETTINGS.last_player_states[0,0,59] > 0:
                         predict_player_state(loaded_model)
+                    else:
+                        SETTINGS.prediction = None
                     update_data(data)
                     player_moved()
                 elif event.type == TIMER_PLAYTIME:
@@ -631,13 +636,13 @@ def main_loop():
             else:
                 update_game_state()
                 update_game_visual()
-#                # If there is a change of level or the game is won, write in the file
-#                if data!=[] and ((SETTINGS.changing_level and SETTINGS.player_states['black']) or SETTINGS.player_states['dead'] or SETTINGS.game_won and gameLoad.timer >= 4):
-#                    print('printing data in data_log_'+str(max_file+1+SETTINGS.current_level)+'.txt')
-#                    with open('data_log_'+str(max_file+1+SETTINGS.current_level)+'.txt', 'w') as outfile:
-#                        json.dump(data, outfile)
-#                    data = []
-#                    max_file = max_file + 1
+                # If there is a change of level or the game is won, write in the file
+                if data!=[] and ((SETTINGS.changing_level and SETTINGS.player_states['black']) or SETTINGS.player_states['dead'] or SETTINGS.game_won and gameLoad.timer >= 4):
+                    print('printing data in data_log_'+str(max_file+1+SETTINGS.current_level)+'.txt')
+                    with open('data_log_'+str(max_file+1+SETTINGS.current_level)+'.txt', 'w') as outfile:
+                        json.dump(data, outfile)
+                    data = []
+                    max_file = max_file + 1
 
 
         except Exception as e:

@@ -94,7 +94,7 @@ def clean_useless_data(data):
             first = i
             while i < ndata and data[i,59] < 200:
                 i = i + 1
-            if i - first >= chunk_len:
+            if i - first >= chunk_len+1:
                 x_list,y_list = generate_chunks(data[first:i,:],chunk_len,x_list,y_list)
         else:
             i = i + 1
@@ -145,11 +145,12 @@ for i in range(max_file+1):
     
     list_raw.append(data_np)
 
-x_data,y_data = clean_useless_data(list_raw[2])
+x_data,y_data = clean_useless_data(list_raw[0])
 for table in list_raw[2:]:
     x_list,y_list= clean_useless_data(table)
-    x_data = np.append(x_data,x_list,0)
-    y_data = np.append(y_data,y_list,0)
+    if x_list.size != 0:
+        x_data = np.append(x_data,x_list,0)
+        y_data = np.append(y_data,y_list,0)
 
 print("x_data shape:")
 print(x_data.shape)
@@ -201,6 +202,7 @@ acc_test = sum(sum(y_test_real==pred_test))/(ntest*nparam)*100
 print("Train accuracy: "+str(acc_train))
 print("Test accuracy: "+str(acc_test))
 
+# Export the model to json
 # serialize model to JSON
 model_json = model.to_json()
 with open("model.json", "w") as json_file:
