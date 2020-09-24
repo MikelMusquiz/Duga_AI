@@ -469,6 +469,7 @@ def get_state():
                     closest_npcs[1] = npc
                 else:
                     closest_npcs[2] = npc
+                    
         state = {   'pl_speed': SETTINGS.player_states["cspeed"],
                     'pl_pos_x': SETTINGS.player_map_pos[0],
                     'pl_pos_y': SETTINGS.player_map_pos[1],
@@ -528,8 +529,12 @@ def update_last_player_states(actual_state):
     SETTINGS.last_player_states[0] = actual_state
         
 def predict_player_state(model):
-    SETTINGS.prediction = model.predict(SETTINGS.last_player_states)[0]
-    print("predicted")
+    # Normalization
+    states_norm = SETTINGS.normalizer.transform(SETTINGS.last_player_states)
+    pred = model.predict(states_norm)[0]
+    pred = SETTINGS.normalizer.inverse_transform(pred)
+    SETTINGS.prediction = pred
+    #print("predicted")
 
     
 #Main loop
@@ -556,6 +561,26 @@ def main_loop():
     # load weights into new model
     loaded_model.load_weights("model.h5")
     loaded_model.compile(loss='mean_squared_error', optimizer='adam', metrics = ['accuracy'])
+    
+    max_values = []
+    # open file and read the content in a list
+    with open('normalizer_values.txt', 'r') as filehandle:
+        for line in filehandle:
+            # remove linebreak which is the last character of the string
+            currentMax = float(line[:-1])
+    
+            # add item to the list
+            max_values.append(currentMax)
+    SETTINGS.normalizer.max_values = np.array(max_values)
+    
+#    with open('normalizer.txt', 'rb') as filehandler:
+#        # Step 3
+#        SETTINGS.normalizer = pickle.load(filehandler)
+#      
+#    with open('normalizer.txt', 'rb') as filehandler:
+#        # Step 3
+#        aux2 = pickle.load(filehandler)
+        
     
     SETTINGS.last_player_states = np.zeros([1,100,114])
 

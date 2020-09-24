@@ -289,9 +289,37 @@ temp = []
 '''Parameters for the player position prediction'''
 predicted_player_state = None
 import pickle
+import numpy as np
 # Read the list of parameters from the file
 with open('data_params.txt', 'rb') as filehandle:
     parameters = pickle.load(filehandle)
 model = None
 prediction = None
 last_player_states = None
+
+# Class with functions to normalize and reverse
+class Normalizer():
+    
+    def __init__(self):    
+        self.max_values = None
+    
+    def fit(self,data):
+        if self.max_values is None:
+            self.max_values = np.amax(data,0)
+            self.max_values[self.max_values==0] = 1
+        else:
+            new_max = np.amax(data,0)
+            self.max_values = np.maximum(self.max_values, new_max)
+    
+    def fit_transform(self,data):
+        self.max_values = np.amax(data,0)
+        self.max_values[self.max_values==0] = 1
+        return data/self.max_values
+    
+    def transform(self,data):
+        return data/self.max_values
+    
+    def inverse_transform(self,data):
+        return data*self.max_values[:33]
+
+normalizer = Normalizer()

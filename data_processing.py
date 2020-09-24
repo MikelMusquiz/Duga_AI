@@ -2,6 +2,7 @@ import numpy as np
 from os import listdir
 from os.path import isfile, join
 import json
+import pickle
 
 np.random.seed(123)
 
@@ -56,22 +57,30 @@ def create_numpy_table(filename,parameters):
         
     return data_np
 
-# Class with functions to normalize and inverse
+# Class with functions to normalize and reverse
 class Normalizer():
     
     def __init__(self):    
         self.max_values = None
     
+    def fit(self,data):
+        if self.max_values is None:
+            self.max_values = np.amax(data,0)
+            self.max_values[self.max_values==0] = 1
+        else:
+            new_max = np.amax(data,0)
+            self.max_values = np.maximum(self.max_values, new_max)
+    
     def fit_transform(self,data):
         self.max_values = np.amax(data,0)
         self.max_values[self.max_values==0] = 1
-        return data
+        return data/self.max_values
     
     def transform(self,data):
-        return data
+        return data/self.max_values
     
     def inverse_transform(self,data):
-        return data
+        return data*self.max_values[:33]
         
 
 def generate_chunks(arr,chunk_len,x,y):
@@ -101,6 +110,8 @@ def clean_useless_data(data):
     return np.array(x_list),np.array(y_list)
     
 
+
+
 example = {"pl_speed": 256, "pl_pos_x": 5, "pl_pos_y": 5, "pl_angle": 56.75, "pl_armor": 5, "pl_health": 35, "gun_name": "Brass Knuckles", "gun_reload": 0, "gun_mag": 0, "gun_bullets": 0, "npc1_ID": 17, "npc1_name": "hostile blurry", "npc1_mind": "hostile", "npc1_state": "patrouling", "npc1_dist": 504.0, "npc2_ID": 3, "npc2_name": "patroul ninja", "npc2_mind": "hostile", "npc2_state": "patrouling", "npc2_dist": 559.3612428475896, "npc3_ID": 2, "npc3_name": "idle ninja", "npc3_mind": "hostile", "npc3_state": "idle", "npc3_dist": 578.0181658045013}
 
 # A list of the categorical parameters
@@ -127,6 +138,8 @@ for file_name in files:
     if file_name[:8] == "data_log":
         max_file = int(file_name[9])
 
+normalizer = Normalizer()
+
 # Create a list with numpy tables, each one for a data file
 list_raw = []
 for i in range(max_file+1):
@@ -136,17 +149,20 @@ for i in range(max_file+1):
     bad_angle_idx = np.where(data_np[:,3]<0)
     data_np[bad_angle_idx,3] = 360 + data_np[bad_angle_idx,3]
     
-    # Normalize if necessary
-    normalizer = Normalizer()
-    data_norm = normalizer.fit_transform(data_np)
-    booleano = np.isnan(data_np)
-    if(sum(sum(booleano))) > 0:
-        print('SOCORROOOOOOOOO!!!!!')
+    # Set inf, -inf and NaN values to zero
+    data_np[np.isnan(data_np)] = 0
+    data_np[np.isinf(data_np)] = 0
+    
+    # Train the normalizer class, it gets the maximums
+    normalizer.fit(data_np)
     
     list_raw.append(data_np)
 
-x_data,y_data = clean_useless_data(list_raw[0])
+
+x_data,y_data = clean_useless_data(normalizer.transform(list_raw[0]))
 for table in list_raw[2:]:
+    # Normalize the data
+    table = normalizer.transform(table)
     x_list,y_list= clean_useless_data(table)
     if x_list.size != 0:
         x_data = np.append(x_data,x_list,0)
@@ -157,6 +173,7 @@ print(x_data.shape)
 print("y_data shape:")
 print(y_data.shape)
 
+
 # Calculate the dimensions of train and test data
 ndata = x_data.shape[0]
 ntrain = int(ndata*0.8)
@@ -164,8 +181,8 @@ ntest = ndata-ntrain
 
 # Shuffle the data
 shuf_idx = np.random.permutation(range(ndata))
-x_data = x_data[shuf_idx]
-y_data = y_data[shuf_idx]
+x_data = x_data[shuf_idx,:,:]
+y_data = y_data[shuf_idx,:]
 
 # Divide the data in train and test
 x_train = x_data[:ntrain]
@@ -185,19 +202,22 @@ lstm_out = 50
 model = Sequential()
 model.add(LSTM(lstm_out, input_shape=(100,nparam)))
 model.add(Dense(output_dim=nout))
-model.compile(loss='mean_squared_error', optimizer='sgd', metrics = ['accuracy'])
+model.compile(loss='mean_squared_error', optimizer='adam', metrics = ['accuracy'])
 model.fit(x_train, y_train, epochs=10, batch_size=100, verbose=2)
 
 
+# Predict train values and calculate the accuracy
 pred_train = normalizer.inverse_transform(model.predict(x_train))
 pred_train = np.round(pred_train)
 y_train_real = normalizer.inverse_transform(y_train)
-acc_train = sum(sum(y_train_real==pred_train))/(ntrain*nparam)*100
+aux = y_train_real==pred_train
+acc_train = sum(sum(y_train_real==pred_train))/(ntrain*nout)*100
 
+# Predict test values and calculate the accuracy
 pred_test = normalizer.inverse_transform(model.predict(x_test))
 pred_test = np.round(pred_test)
 y_test_real = normalizer.inverse_transform(y_test)
-acc_test = sum(sum(y_test_real==pred_test))/(ntest*nparam)*100
+acc_test = sum(sum(y_test_real==pred_test))/(ntest*nout)*100
 
 print("Train accuracy: "+str(acc_train))
 print("Test accuracy: "+str(acc_test))
@@ -210,4 +230,14 @@ with open("model.json", "w") as json_file:
 # serialize weights to HDF5
 model.save_weights("model.h5")
 print("Saved model to disk")
- 
+
+# Export the normalization values
+with open('normalizer_values.txt', 'w') as filehandle:
+    for listitem in normalizer.max_values:
+        filehandle.write('%s\n' % listitem)
+        
+#with open('normalizer.txt', 'wb') as filehandle:
+#  # Step 3
+#  pickle.dump(normalizer, filehandle)
+#  
+
